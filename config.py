@@ -10,7 +10,7 @@ parser.add_argument('--rabbits', default=20, type=int,
                     help="Number of rabbits in a simulation at a time (default: 20).")
 parser.add_argument('--regrow', default=5, type=int, help="Defines grass regrowth delay in ticks (default: 5).")
 parser.add_argument('--seed', default=None, type=int, help="Random seed for random generations (default: None).")
-parser.add_argument('--ui', default='curses', choices=['none', 'curses'], type=str,
+parser.add_argument('--ui', default='none', choices=['none', 'curses'], type=str,
                     help="Way of how the render would be displayed (default: 'curses').")
 parser.add_argument('--fps', default=60.0, type=float, help="frames to display per second (default: 60.0).")
 parser.add_argument('--tps', default=8.0, type=float, help="simulation tick rate (ticks per second, default: 8.0)")

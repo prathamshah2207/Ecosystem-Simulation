@@ -123,7 +123,10 @@ def run_headless():
     """
     render_counter = 0
     sim_ticks = 0
-    sum_coverage = 0
+    sum_coverage = 0.0
+    min_cov = 1.0
+    max_cov = 0.0
+    total_cells = grid_width * grid_height
     grid = init_grid(grid_width, grid_height)
     list_of_rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
 
@@ -131,10 +134,14 @@ def run_headless():
 
         # Print status of simulation whenever render_counter hits 0.
         g = grass_count(grid)
+        cov = g / total_cells
+        sum_coverage += g / total_cells
+        min_cov = min(min_cov, cov)
+        max_cov = max(max_cov, cov)
         if render_counter == 0:
-            print(f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height}")
+            print(
+                f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height} coverage={(cov * 100):.1f}%")
             render_counter = render_every
-        sum_coverage += g / (grid_width * grid_height)
 
         # Make every rabbit move in a random direction using move_rabbit()
         next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG)
@@ -150,31 +157,38 @@ def run_headless():
         # time.sleep(1 / 20)
 
     # Post-simulation summary
-    print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage / total_ticks, 2)}")
+    print(
+        f"done: ticks={total_ticks} average_grass_coverage = {((sum_coverage / total_ticks) * 100):.1f}% min = {(min_cov * 100):.1f}% max = {(max_cov * 100):.1f}%")
 
 
 def run_curses():
     grid = init_grid(grid_width, grid_height)
     rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
     sim_ticks = 0
-    sum_coverage = 0
+    sum_coverage = 0.0
+    min_cov = 1.0
+    max_cov = 0.0
     total_cells = grid_width * grid_height
 
     def step_fn():
-        nonlocal sim_ticks, sum_coverage, grid, rabbits
+        nonlocal sim_ticks, sum_coverage, min_cov, max_cov, grid, rabbits
         if sim_ticks < total_ticks:
             next_moves = decide_moves(rabbits, grid_width, grid_height, RNG)
             apply_moves(rabbits, next_moves)
             newly = eat_cells(grid, rabbits, regrow_rate)
             regrow_step(grid, newly)
-            sim_ticks += 1
             g = grass_count(grid)
-            sum_coverage += g / total_cells
+            cov = g / total_cells
+            sum_coverage += cov
+            if cov < min_cov: min_cov = cov
+            if cov > max_cov: max_cov = cov
+            sim_ticks += 1
         return sim_ticks, grid, rabbits
 
     tui.run_curses_loop(args, step_fn, init_state=(grid, rabbits))
     # After curses exits, print the same summary as headless
-    print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage / total_ticks, 2)}")
+    print(
+        f"done: ticks={total_ticks} avg={sum_coverage / total_ticks * 100:.1f}% min={(min_cov * 100):.1f}% max={(max_cov * 100):.1f}%")
 
 
 if args.ui == "curses":
