@@ -8,12 +8,18 @@ parser.add_argument('--ticks', default=200, type=int,
 parser.add_argument('--render-every', default=1, type=int, help="Print one status line every K ticks (default: 1).")
 parser.add_argument('--rabbits', default=20, type=int,
                     help="Number of rabbits in a simulation at a time (default: 20).")
-parser.add_argument('--regrow', default=5, type=int, help="Defines grass regrowth delay in ticks (default: 5).")
+parser.add_argument('--regrow', default=8, type=int, help="Defines grass regrowth delay in ticks (default: 8).")
 parser.add_argument('--seed', default=None, type=int, help="Random seed for random generations (default: None).")
 parser.add_argument('--ui', default='curses', choices=['none', 'curses'], type=str,
                     help="Way of how the render would be displayed (default: 'curses').")
 parser.add_argument('--fps', default=60.0, type=float, help="frames to display per second (default: 60.0).")
 parser.add_argument('--tps', default=8.0, type=float, help="simulation tick rate (ticks per second, default: 8.0)")
+
+# rabbit's args
+parser.add_argument('--energy-start', default=5, type=int, help="initial energy for each rabbit (default: 5).")
+parser.add_argument('--move-cost', default=1, type=int, help="energy cost when a rabbit moves (N/E/S/W) (default: 1).")
+parser.add_argument('--idle-cost', default=0, type=int, help="energy cost if it stays (default: 0).")
+parser.add_argument('--eat-gain', default=4, type=int, help="energy gained when eating grass (default: 4).")
 
 args = parser.parse_args()
 
