@@ -1,7 +1,6 @@
 import random
-import time
-
 import config
+import tui
 
 # Ecosystem variables
 args = config.get_args()
@@ -117,34 +116,68 @@ def regrow_step(grid, newly_eaten) -> None:
 
 
 # Simulation start here
+def run_headless():
+    """
+    Main simulation displayed as reports-only in output.
+    :return: None
+    """
+    render_counter = 0
+    sim_ticks = 0
+    sum_coverage = 0
+    grid = init_grid(grid_width, grid_height)
+    list_of_rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
 
-render_counter = 0
-sim_ticks = 0
-sum_coverage = 0
-grid = init_grid(grid_width, grid_height)
-list_of_rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
+    while sim_ticks < total_ticks:
 
-while sim_ticks < total_ticks:
+        # Print status of simulation whenever render_counter hits 0.
+        g = grass_count(grid)
+        if render_counter == 0:
+            print(f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height}")
+            render_counter = render_every
+        sum_coverage += g / (grid_width * grid_height)
 
-    # Print status of simulation whenever render_counter hits 0.
-    g = grass_count(grid)
-    if render_counter == 0:
-        print(f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height}")
-        render_counter = render_every
-    sum_coverage += g / (grid_width * grid_height)
+        # Make every rabbit move in a random direction using move_rabbit()
+        next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG)
+        apply_moves(list_of_rabbits, next_moves)
 
-    # Make every rabbit move in a random direction using move_rabbit()
-    next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG)
-    apply_moves(list_of_rabbits, next_moves)
+        # after movement, rabbits can eat grass
+        recently_eaten = eat_cells(grid, list_of_rabbits, regrow_rate)
+        regrow_step(grid, recently_eaten)
 
-    # after movement, rabbits can eat grass
-    recently_eaten = eat_cells(grid, list_of_rabbits, regrow_rate)
-    regrow_step(grid, recently_eaten)
+        # Update tick and render counter
+        sim_ticks += 1
+        render_counter -= 1
+        # time.sleep(1 / 20)
 
-    # Update tick and render counter
-    sim_ticks += 1
-    render_counter -= 1
-    time.sleep(1 / 20)
+    # Post-simulation summary
+    print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage / total_ticks, 2)}")
 
-# Post-simulation summary
-print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage / total_ticks, 2)}")
+
+def run_curses():
+    grid = init_grid(grid_width, grid_height)
+    rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
+    sim_ticks = 0
+    sum_coverage = 0
+    total_cells = grid_width * grid_height
+
+    def step_fn():
+        nonlocal sim_ticks, sum_coverage, grid, rabbits
+        if sim_ticks < total_ticks:
+            next_moves = decide_moves(rabbits, grid_width, grid_height, RNG)
+            apply_moves(rabbits, next_moves)
+            newly = eat_cells(grid, rabbits, regrow_rate)
+            regrow_step(grid, newly)
+            sim_ticks += 1
+            g = grass_count(grid)
+            sum_coverage += g / total_cells
+        return sim_ticks, grid, rabbits
+
+    tui.run_curses_loop(args, step_fn, init_state=(grid, rabbits))
+    # After curses exits, print the same summary as headless
+    print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage / total_ticks, 2)}")
+
+
+if args.ui == "curses":
+    run_curses()
+else:
+    run_headless()
