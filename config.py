@@ -10,6 +10,9 @@ parser.add_argument('--rabbits', default=20, type=int,
                     help="Number of rabbits in a simulation at a time (default: 20).")
 parser.add_argument('--regrow', default=5, type=int, help="Defines grass regrowth delay in ticks (default: 5).")
 parser.add_argument('--seed', default=None, type=int, help="Random seed for random generations (default: None).")
+parser.add_argument('--ui', default='none', choices=['none', 'curses'], type=str,
+                    help="Way of how the render would be displayed (default: 'none').")
+parser.add_argument('--fps', default=10.0, type=float, help="frames to display per second (default: 10.0).")
 
 args = parser.parse_args()
 
@@ -23,6 +26,8 @@ if args.ticks < 1:
     parser.error("Ticks to simulate cannot be less than 1.")
 if args.render_every < 1:
     parser.error("Rendering time cannot be less than 1.")
+if args.fps <= 0:
+    parser.error("fps must be greater than 0.")
 
 
 def get_args():
