@@ -34,7 +34,8 @@ def place_rabbits(width, height, n, rng) -> list[tuple[int, int]]:
     :param rng: RNG for random placements
     :return: list of tuples of ints made of rabbit coordinates
     """
-    return [divmod(i, height) for i in rng.sample(range(width * height), n)]
+    cells = [(x, y) for y in range(height) for x in range(width)]
+    return rng.sample(cells, n)  # distinct positions
 
 
 def grass_count(grid) -> int:
@@ -105,10 +106,14 @@ def regrow_step(grid, newly_eaten) -> None:
     :param newly_eaten: List of tiles to skip the growth.
     :return: None
     """
-    for row in grid:
-        for tile in row:
-            if tile not in newly_eaten and tile > 0:
-                tile -= 1
+    H = len(grid)
+    W = len(grid[0]) if H else 0
+    for i in range(H):
+        for j in range(W):
+            if (j, i) in newly_eaten:
+                continue  # don't decrement the cell we just set to G this tick
+            if grid[i][j] > 0:
+                grid[i][j] -= 1
 
 
 # Simulation start here
@@ -119,13 +124,14 @@ sum_coverage = 0
 grid = init_grid(grid_width, grid_height)
 list_of_rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
 
-while sim_ticks <= total_ticks:
+while sim_ticks < total_ticks:
 
     # Print status of simulation whenever render_counter hits 0.
+    g = grass_count(grid)
     if render_counter == 0:
-        print(f"tick={sim_ticks} rabbits={total_rabbits}, grass={grass_count(grid)}/{grid_width * grid_height}")
+        print(f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height}")
         render_counter = render_every
-    sum_coverage += grass_count(grid) / (grid_width * grid_height)
+    sum_coverage += g / (grid_width * grid_height)
 
     # Make every rabbit move in a random direction using move_rabbit()
     next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG)
@@ -141,4 +147,4 @@ while sim_ticks <= total_ticks:
     time.sleep(1 / 20)
 
 # Post-simulation summary
-print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage/total_ticks, 2)}")
+print(f"done: ticks={total_ticks} average_grass_coverage = {round(sum_coverage / total_ticks, 2)}")
