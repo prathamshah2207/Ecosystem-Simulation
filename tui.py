@@ -18,68 +18,86 @@ def run_curses_loop(cfg, step_fn, init_state) -> None:
 
 
 def _main(stdscr, cfg, step_fn, init_state):
+    import curses
+    from time import perf_counter
+
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(0)
 
-    tick_dt = 1.0 / cfg.tps
-    frame_dt = 1.0 / cfg.fps
+    tick_dt = 1.0 / cfg.tps  # simulation tick cadence
+    frame_dt = 1.0 / cfg.fps  # render cadence
 
     now = perf_counter()
-    next_tick = now  # start stepping right away (after tick 0 draw)
+    next_tick = now  # first tick is scheduled "now"
     next_frame = now + frame_dt
     prev_frame = now
-    last_drawn_tick = -1
 
-    # Optional: show tick 0 before time starts
-    if init_state is not None:
-        init_grid, init_rabbits = init_state
-        draw_frame(stdscr, cfg, 0, init_grid, init_rabbits, fps_est=cfg.fps)
-
-    running = True
+    paused = False
     tick = 0
     grid = None
     rabbits = None
 
+    # Optional: show tick 0 immediately
+    if init_state is not None:
+        grid, rabbits = init_state
+        draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est=cfg.fps, paused=paused)
+
+    last_drawn_tick = -1
+    running = True
+
     while running:
         now = perf_counter()
 
-        # 1) Handle input (non-blocking)
+        # --- input ---
         key = stdscr.getch()
         if key in (ord('q'), ord('Q')):
             break
+        if key in (ord('p'), ord('P')):
+            paused = not paused
+            # realign schedulers to avoid catch-up on resume
+            if paused:
+                next_frame = now + frame_dt
+            else:
+                next_tick = now + tick_dt
+                next_frame = now + frame_dt
 
-        # 2) Advance the simulation to "catch up" to real time
-        #    (may step multiple ticks if we fell behind)
-        #    Optional safety: cap the max catch-up to avoid huge bursts.
-        max_catchup = int(cfg.tps * 2)  # at most 2s worth per loop; tweak if you want
-        catchup = 0
-        while now >= next_tick and tick < cfg.ticks and catchup < max_catchup:
-            tick, grid, rabbits = step_fn()
-            next_tick += tick_dt
-            catchup += 1
-            if tick >= cfg.ticks:
-                running = False
-                break
+        # --- advance sim (tick scheduler), only if not paused ---
+        if not paused:
+            # catch up to "now", but cap bursts to keep UI responsive
+            max_catchup = int(cfg.tps * 2)  # at most ~2 seconds of ticks per loop
+            caught = 0
+            while now >= next_tick and tick < cfg.ticks and caught < max_catchup:
+                tick, grid, rabbits = step_fn()
+                next_tick += tick_dt
+                caught += 1
+                if tick >= cfg.ticks:
+                    running = False
+                    break
 
-        # 3) Draw on its own schedule (independent of ticks)
-        if now >= next_frame and tick % cfg.render_every == 0 and last_drawn_tick != tick:
-            fps_est = 1.0 / max(now - prev_frame, 1e-6)
-            draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est)
-            last_drawn_tick = tick
+        # --- draw (frame scheduler), independent of ticks ---
+        should_draw = (now >= next_frame) and (
+                paused or (tick % cfg.render_every == 0 and last_drawn_tick != tick)
+        )
+        if should_draw:
+            dt = max(now - prev_frame, 1e-6)
+            fps_est = 1.0 / dt
+            draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est, paused)
+            if not paused:
+                last_drawn_tick = tick
             prev_frame = now
             next_frame += frame_dt
 
-        # 4) Sleep briefly until the next soonest event to avoid CPU spin
-        wait_until = min(next_tick, next_frame)
+        # --- gentle sleep until the next event (tick or frame) ---
+        wait_until = min(next_tick if not paused else next_frame, next_frame)
         delay_ms = max(0, int((wait_until - now) * 1000))
-        curses.napms(min(delay_ms, 10))  # small cap keeps input responsive
+        curses.napms(min(delay_ms, 10))
 
-    # Optional: one last draw at the final tick (if you want a final frame)
-    draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est=cfg.fps)
+    # final frame (optional)
+    draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est=cfg.fps, paused=paused)
 
 
-def draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est):
+def draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est, paused):
     """
     Draw one full frame: status, grid, legend. Refresh ones.
     """
@@ -97,7 +115,10 @@ def draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est):
     total = cfg.width * cfg.height
     # compute grass count here (or pass it from step_fn if you prefer)
     grass = sum(1 for y in range(cfg.height) for x in range(cfg.width) if grid[y][x] == 0)
-    status = f'EcoSim | tick {tick:>4} | rabbits: {len(rabbits):>3} | grass: {grass}/{total} | fps≈{fps_est:04.1f}'
+    if paused:
+        status = f'EcoSim | tick: {tick:>4} | rabbits: {len(rabbits):>3} | grass: {grass}/{total} | fps≈{fps_est:04.1f} | [PAUSED]'
+    else:
+        status = f'EcoSim | tick: {tick:>4} | rabbits: {len(rabbits):>3} | grass: {grass}/{total} | fps≈{fps_est:04.1f}'
     stdscr.addstr(0, 0, status)
 
     # 2) grid (rows 1..H, cols start at GRID_X0)
