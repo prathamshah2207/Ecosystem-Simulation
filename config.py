@@ -9,7 +9,7 @@ parser.add_argument('--render-every', default=10, type=int, help="Print one stat
 parser.add_argument('--rabbits', default=20, type=int,
                     help="Number of rabbits in a simulation at a time (default: 20).")
 parser.add_argument('--regrow', default=5, type=int, help="Defines grass regrowth delay in ticks (default: 5).")
-parser.add_argument('--seed', default=None, help="Random seed for random generations (default: None).")
+parser.add_argument('--seed', default=None, type=int, help="Random seed for random generations (default: None).")
 
 args = parser.parse_args()
 
