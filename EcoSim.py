@@ -10,7 +10,14 @@ total_ticks = args.ticks
 render_every = args.render_every
 seed = args.seed
 regrow_rate = args.regrow
-total_rabbits = args.rabbits
+
+# Rabbit's args
+initial_rabbits = args.rabbits
+starting_energy = args.energy_start
+move_cost = args.move_cost
+idle_cost = args.idle_cost
+eating_gains = args.eat_gain
+
 RNG = random.Random(seed)
 
 
@@ -24,17 +31,19 @@ def init_grid(width, height) -> list[list[int]]:
     return [[0 for _ in range(width)] for _ in range(height)]
 
 
-def place_rabbits(width, height, n, rng) -> list[tuple[int, int]]:
+def place_rabbits(width, height, n, rng, energy) -> list[tuple[int, int]]:
     """
     Random placement of rabbits on the grid
     :param width: width of grid
     :param height: height of grid
     :param n: number of rabbits to place
     :param rng: RNG for random placements
+    :param energy: initial energy of all rabbits
     :return: list of tuples of ints made of rabbit coordinates
     """
-    cells = [(x, y) for y in range(height) for x in range(width)]
-    return rng.sample(cells, n)  # distinct positions
+    cells = [(x, y, energy) for y in range(height) for x in range(width)]
+    rabbits = rng.sample(cells, n)
+    return rabbits
 
 
 def grass_count(grid) -> int:
@@ -51,13 +60,15 @@ def grass_count(grid) -> int:
     return grasses
 
 
-def decide_moves(rabbits, width, height, rng) -> list[tuple[int, int]]:
+def decide_moves(rabbits, width, height, rng, move_cst, idle_cst) -> list[tuple[int, int, int]]:
     """
     For each rabbit, propose target by adding one of [(1,0),(-1,0),(0,1),(0,-1)]. If target is OOB, use current pos (stay).
     :param rabbits: list of rabbit coordinates
     :param width: width of grid
     :param height: height of grid
     :param rng: RNG for random movements
+    :param move_cst: cost of energy to potentially move rabbit
+    :param idle_cst: cost of energy to potentially stay idle
     :return targets: list of targeted coordinates for rabbits to move
     """
     targets = []
@@ -65,9 +76,9 @@ def decide_moves(rabbits, width, height, rng) -> list[tuple[int, int]]:
         direction_to_move = rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
         # check if new position is within grid bounds and if not then remain in same position
         if 0 <= coord[0] + direction_to_move[0] < width and 0 <= coord[1] + direction_to_move[1] < height:
-            targets.append((coord[0] + direction_to_move[0], coord[1] + direction_to_move[1]))
+            targets.append((coord[0] + direction_to_move[0], coord[1] + direction_to_move[1], coord[2] - move_cst))
         else:
-            targets.append(coord)
+            targets.append((coord[0], coord[1], coord[2] - idle_cst))
     return targets
 
 
@@ -82,19 +93,23 @@ def apply_moves(rabbits, targets) -> None:
         rabbits[index] = targets[index]
 
 
-def eat_cells(grid, rabbits, regrow) -> set[tuple[int, int]]:
+def eat_cells(grid, rabbits, regrow, energy_gain) -> set[tuple[int, int]]:
     """
     Eats up a cell's grass for all the rabbits and sets the regrow timer for the grass on the cell.
     :param grid: simulation grid
     :param rabbits: list of rabbit's positions
     :param regrow: growth time to be set on eaten tiles
+    :param energy_gain: energy to gain after eating grass
     :return: set of tuples of coordinates that have been eaten recently
     """
     newly_eaten = set()
-    for rabbit_pos in rabbits:
-        if grid[rabbit_pos[1]][rabbit_pos[0]] == 0:
-            grid[rabbit_pos[1]][rabbit_pos[0]] = regrow
-            newly_eaten.add(rabbit_pos)
+    for index in range(len(rabbits)):
+        if grid[rabbits[index][1]][rabbits[index][0]] == 0:
+            grid[rabbits[index][1]][rabbits[index][0]] = regrow  # Set new timer for grass to grow again
+            rabbits[index] = (rabbits[index][0], rabbits[index][1],
+                              rabbits[index][2] + energy_gain)  # Give energy gains to rabbits who have eaten grass
+            newly_eaten.add(
+                (rabbits[index][0], rabbits[index][1]))  # Save the newly eaten position on grid for later use
     return newly_eaten
 
 
@@ -102,7 +117,7 @@ def regrow_step(grid, newly_eaten) -> None:
     """
     Decrements the timer of every tile on grid by 1, clamped to 0.
     :param grid: simulation grid.
-    :param newly_eaten: List of tiles to skip the growth.
+    :param newly_eaten: Set of tiles to skip the growth.
     :return: None
     """
     H = len(grid)
@@ -113,6 +128,15 @@ def regrow_step(grid, newly_eaten) -> None:
                 continue  # don't decrement the cell we just set to G this tick
             if grid[i][j] > 0:
                 grid[i][j] -= 1
+
+
+def remove_dead_bodies(rabbits) -> None:
+    """
+    Remove rabbits from grid whose energy levels have reached 0 and so are dead.
+    :param rabbits: List of rabbits.
+    :return: None
+    """
+    rabbits[:] = [r for r in rabbits if r[2] > 0]
 
 
 # Simulation start here
@@ -128,7 +152,7 @@ def run_headless():
     max_cov = 0.0
     total_cells = grid_width * grid_height
     grid = init_grid(grid_width, grid_height)
-    list_of_rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
+    list_of_rabbits = place_rabbits(grid_width, grid_height, initial_rabbits, RNG, starting_energy)
 
     while sim_ticks < total_ticks:
 
@@ -144,12 +168,15 @@ def run_headless():
             render_counter = render_every
 
         # Make every rabbit move in a random direction using move_rabbit()
-        next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG)
+        next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG, move_cost, idle_cost)
         apply_moves(list_of_rabbits, next_moves)
 
         # after movement, rabbits can eat grass
-        recently_eaten = eat_cells(grid, list_of_rabbits, regrow_rate)
+        recently_eaten = eat_cells(grid, list_of_rabbits, regrow_rate, eating_gains)
         regrow_step(grid, recently_eaten)
+
+        # clear any dead rabbits whose energy level reaches 0
+        remove_dead_bodies(list_of_rabbits)
 
         # Update tick and render counter
         sim_ticks += 1
@@ -163,7 +190,7 @@ def run_headless():
 
 def run_curses():
     grid = init_grid(grid_width, grid_height)
-    rabbits = place_rabbits(grid_width, grid_height, total_rabbits, RNG)
+    rabbits = place_rabbits(grid_width, grid_height, initial_rabbits, RNG, starting_energy)
     sim_ticks = 0
     sum_coverage = 0.0
     min_cov = 1.0
@@ -173,10 +200,11 @@ def run_curses():
     def step_fn():
         nonlocal sim_ticks, sum_coverage, min_cov, max_cov, grid, rabbits
         if sim_ticks < total_ticks:
-            next_moves = decide_moves(rabbits, grid_width, grid_height, RNG)
+            next_moves = decide_moves(rabbits, grid_width, grid_height, RNG, move_cost, idle_cost)
             apply_moves(rabbits, next_moves)
-            newly = eat_cells(grid, rabbits, regrow_rate)
+            newly = eat_cells(grid, rabbits, regrow_rate, eating_gains)
             regrow_step(grid, newly)
+            remove_dead_bodies(rabbits)
             g = grass_count(grid)
             cov = g / total_cells
             sum_coverage += cov

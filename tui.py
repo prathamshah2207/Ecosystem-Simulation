@@ -18,9 +18,6 @@ def run_curses_loop(cfg, step_fn, init_state) -> None:
 
 
 def _main(stdscr, cfg, step_fn, init_state):
-    import curses
-    from time import perf_counter
-
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(0)
@@ -122,7 +119,7 @@ def draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est, paused):
     stdscr.addstr(0, 0, status)
 
     # 2) grid (rows 1..H, cols start at GRID_X0)
-    rabbit_set = set(rabbits)
+    rabbit_set = {(rx, ry) for (rx, ry, _) in rabbits}
     for y in range(cfg.height):
         for x in range(cfg.width):
             timer = grid[y][x]
