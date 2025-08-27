@@ -12,3 +12,18 @@ parser.add_argument('--regrow', default=5, type=int, help="Defines grass regrowt
 parser.add_argument('--seed', default=None, help="Random seed for random generations (default: None).")
 
 args = parser.parse_args()
+
+if args.width < 1 or args.height < 1:
+    parser.error("The width and height should be greater than or equal to 1.")
+if args.rabbits > args.width * args.height:
+    parser.error("Number of rabbits should be less than total number of cells.")
+if args.regrow < 0:
+    parser.error("Regrow rate cannot be negative.")
+if args.ticks < 1:
+    parser.error("Ticks to simulate cannot be less than 1.")
+if args.render_every < 1:
+    parser.error("Rendering time cannot be less than 1.")
+
+
+def get_args():
+    return args
