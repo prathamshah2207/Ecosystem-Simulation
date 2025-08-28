@@ -17,6 +17,9 @@ starting_energy = args.energy_start
 move_cost = args.move_cost
 idle_cost = args.idle_cost
 eating_gains = args.eat_gain
+reproduction_threshold = args.repro_threshold
+reproduction_cost = args.repro_cost
+initial_energy = args.infant_energy if args.infant_energy else reproduction_cost
 
 RNG = random.Random(seed)
 
@@ -130,6 +133,39 @@ def regrow_step(grid, newly_eaten) -> None:
                 grid[i][j] -= 1
 
 
+def reproduce(rabbits, rng, width, height, threshold, cost, spawn_energy) -> list:
+    """
+    takes all rabbits and makes it reproduce by cutting some energy and spawning a new rabbit in grid near parent of the rabbit has the reproduction threshold
+    :param rabbits: list of rabbits
+    :param rng: RNG for randomness
+    :param width: width of grid
+    :param height: height of grid
+    :param threshold: reproduction threshold
+    :param cost: reproduction cost of parent
+    :param spawn_energy: initial energy of the spawned infant
+    :return newly_born: list of newly born rabbits
+    """
+    spawnable_directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    newly_born = []
+
+    for index in range(len(rabbits)):
+        if rabbits[index][2] >= threshold:
+            for direction in rng.sample(spawnable_directions, 4):  # goes through all direction for spawnable conditions
+                if 0 <= rabbits[index][0] + direction[0] < width and 0 <= rabbits[index][1] + direction[1] < height:
+                    spawned_infant = (rabbits[index][0] + direction[0], rabbits[index][1] + direction[1],
+                                      spawn_energy)  # spawn one if a direction is valid for spawning
+                    rabbits[index] = (rabbits[index][0], rabbits[index][1], rabbits[index][2] - cost)
+                    newly_born.append(spawned_infant)
+                    break
+            else:  # If no adjacent tile is possible to spawn then spawn it on parent's tile
+                spawned_infant = (rabbits[index][0], rabbits[index][1],
+                                  spawn_energy)  # spawn infant at parent's position if no direction is spawnable
+                rabbits[index] = (rabbits[index][0], rabbits[index][1], rabbits[index][2] - cost)
+                newly_born.append(spawned_infant)
+
+    return newly_born
+
+
 def remove_dead_bodies(rabbits) -> None:
     """
     Remove rabbits from grid whose energy levels have reached 0 and so are dead.
@@ -175,6 +211,11 @@ def run_headless():
         recently_eaten = eat_cells(grid, list_of_rabbits, regrow_rate, eating_gains)
         regrow_step(grid, recently_eaten)
 
+        # Rabbits can now reproduce if they meet the energy requirement
+        new_born = reproduce(list_of_rabbits, RNG, grid_width, grid_height, reproduction_threshold, reproduction_cost,
+                             initial_energy)
+        list_of_rabbits += new_born
+
         # clear any dead rabbits whose energy level reaches 0
         remove_dead_bodies(list_of_rabbits)
 
@@ -204,7 +245,12 @@ def run_curses():
             apply_moves(rabbits, next_moves)
             newly = eat_cells(grid, rabbits, regrow_rate, eating_gains)
             regrow_step(grid, newly)
+            new_born = reproduce(rabbits, RNG, grid_width, grid_height, reproduction_threshold,
+                                 reproduction_cost,
+                                 initial_energy)
+            rabbits += new_born
             remove_dead_bodies(rabbits)
+
             g = grass_count(grid)
             cov = g / total_cells
             sum_coverage += cov

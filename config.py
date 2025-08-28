@@ -22,7 +22,9 @@ parser.add_argument('--idle-cost', default=0, type=int, help="energy cost if it 
 parser.add_argument('--eat-gain', default=4, type=int, help="energy gained when eating grass (default: 4).")
 parser.add_argument('--repro-threshold', default=10, type=int, help="minimum energy to reproduce (default: 10).")
 parser.add_argument('--repro-cost', default=5, type=int,
-                    help="energy given to the child and deducted from parent (default: 5).")
+                    help="energy deducted from parent while giving birth(default: 5).")
+parser.add_argument('--infant-energy', default=None, type=int,
+                    help="energy given to a newly born child (default: repro_cost if no value passed, None is placeholder for default).")
 
 args = parser.parse_args()
 
