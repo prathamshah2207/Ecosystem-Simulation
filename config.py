@@ -19,7 +19,7 @@ parser.add_argument('--tps', default=8.0, type=float, help="simulation tick rate
 
 # rabbit's args
 parser.add_argument('--energy-start', default=5, type=int, help="initial energy for each rabbit (default: 5).")
-parser.add_argument('--move-cost', default=1, type=int, help="energy cost when a rabbit moves (N/E/S/W) (default: 1).")
+parser.add_argument('--move-cost', default=2, type=int, help="energy cost when a rabbit moves (N/E/S/W) (default: 2).")
 parser.add_argument('--idle-cost', default=0, type=int, help="energy cost if it stays (default: 0).")
 parser.add_argument('--eat-gain', default=4, type=int, help="energy gained when eating grass (default: 4).")
 parser.add_argument('--repro-threshold', default=10, type=int, help="minimum energy to reproduce (default: 10).")
