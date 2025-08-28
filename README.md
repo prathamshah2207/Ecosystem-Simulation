@@ -87,6 +87,7 @@ python EcoSim.py --ui curses --width 20 --height 10 --rabbits 15 --capacity 1 --
 | `--infant-energy` | `None` | Newborn energy (defaults to `repro_cost` if not set) |
 
 > 💡 **Balance tip:** Using a small `--idle-cost` (e.g., `1`) and a higher `--move-cost` (e.g., `2`) prevents “idle farming” when the grid is packed.
+> 💡 **Note:** All default values for flags in `config.py` may not match the above list
 
 ---
 
@@ -122,18 +123,11 @@ python EcoSim.py --ui curses --width 20 --height 10 --rabbits 15 --capacity 1 --
 
 ## 🧭 Roadmap
 
-- Reproduction cooldown (prevents bursty booms)  
+- Reproduction cooldown
 - Global metabolic tax per tick (base energy drain)  
 - Local sensing: prefer nearby grass over random moves  
 - Seasons: time-varying `--regrow` for cycles  
 - Predators with simple chase rules
-
----
-
-## ✅ Invariants
-
-- `0 ≤ grid[y][x][1] ≤ capacity` always  
-- `free_slots_total + rabbits_count == width * height * capacity`
 
 ---
 
