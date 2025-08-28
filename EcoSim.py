@@ -20,7 +20,7 @@ idle_cost = args.idle_cost
 eating_gains = args.eat_gain
 reproduction_threshold = args.repro_threshold
 reproduction_cost = args.repro_cost
-initial_energy = args.infant_energy if args.infant_energy else reproduction_cost
+initial_energy = reproduction_cost if args.infant_energy is None else args.infant_energy
 
 RNG = random.Random(seed)
 

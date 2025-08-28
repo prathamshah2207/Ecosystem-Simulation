@@ -50,7 +50,7 @@ if args.repro_threshold < 0:
     parser.error("reproduction threshold cannot be less than 0.")
 if args.repro_cost < 0:
     parser.error("reproduction cost cannot be less than 0.")
-if args.infant_energy is int and args.infant_energy <= 0:
+if args.infant_energy is not None and args.infant_energy <= 0:
     parser.error("Infant energy must be a positive integer.")
 
 
