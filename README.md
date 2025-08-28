@@ -134,4 +134,3 @@ python EcoSim.py --ui curses --width 20 --height 10 --rabbits 15 --capacity 1 --
 ## 👨‍💻 Author
 ### Pratham Shah
 📫 [LinkedIn](https://www.linkedin.com/in/pratham-shah-057274190/) | 🌐 [GitHub](https://github.com/prathamshah2207)
-MIT — do whatever, be kind, give credit.
