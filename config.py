@@ -20,6 +20,9 @@ parser.add_argument('--energy-start', default=5, type=int, help="initial energy 
 parser.add_argument('--move-cost', default=1, type=int, help="energy cost when a rabbit moves (N/E/S/W) (default: 1).")
 parser.add_argument('--idle-cost', default=0, type=int, help="energy cost if it stays (default: 0).")
 parser.add_argument('--eat-gain', default=4, type=int, help="energy gained when eating grass (default: 4).")
+parser.add_argument('--repro-threshold', default=10, type=int, help="minimum energy to reproduce (default: 10).")
+parser.add_argument('--repro-cost', default=5, type=int,
+                    help="energy given to the child and deducted from parent (default: 5).")
 
 args = parser.parse_args()
 
@@ -37,6 +40,10 @@ if args.fps <= 0:
     parser.error("fps must be greater than 0.")
 if args.tps <= 0:
     parser.error("tps must be > 0.")
+if args.repro_threshold < 0:
+    parser.error("reproduction threshold cannot be less than 0.")
+if args.repro_cost < 0:
+    parser.error("reproduction cost cannot be less than 0.")
 
 
 def get_args():
