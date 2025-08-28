@@ -112,7 +112,7 @@ def draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est, paused):
     # status line (row 0)
     total = cfg.width * cfg.height
     # compute grass count from timers
-    grass = sum(1 for y in range(cfg.height) for x in range(cfg.width) if grid[y][x] == 0)
+    grass = sum(1 for y in range(cfg.height) for x in range(cfg.width) if grid[y][x][0] == 0)
     if paused:
         status = (
             f'EcoSim | tick: {tick:>4} | rabbits: {len(rabbits):>3} | '
@@ -126,10 +126,10 @@ def draw_frame(stdscr, cfg, tick, grid, rabbits, fps_est, paused):
     stdscr.addstr(0, 0, status)
 
     # grid (rows 1..H, cols start at GRID_X0)
-    rabbit_set = {(rx, ry) for (rx, ry, _) in (rabbits or [])}
+    rabbit_set = {(rx, ry) for [rx, ry, _] in (rabbits or [])}
     for y in range(cfg.height):
         for x in range(cfg.width):
-            timer = grid[y][x]
+            timer = grid[y][x][0]
             has_grass = (timer == 0)
             has_rabbit = (x, y) in rabbit_set
             if has_rabbit and has_grass:
@@ -163,7 +163,7 @@ def _draw_energy_panel(stdscr, rabbits, x0, y0):
       - 5-bin histogram sparkline
     """
     # gather energies
-    energies = [e for (_, _, e) in rabbits]
+    energies = [e for [_, _, e] in rabbits]
     pop = len(energies)
     if pop == 0:
         mean = 0.0

@@ -6,6 +6,7 @@ import tui
 args = config.get_args()
 grid_width = args.width
 grid_height = args.height
+tile_capacity = args.capacity
 total_ticks = args.ticks
 render_every = args.render_every
 seed = args.seed
@@ -24,28 +25,30 @@ initial_energy = args.infant_energy if args.infant_energy else reproduction_cost
 RNG = random.Random(seed)
 
 
-def init_grid(width, height) -> list[list[int]]:
+def init_grid(width, height, cell_cap) -> list[list[list[int, int]]]:
     """
     Grid generation for simulation
     :param width: width of grid
     :param height: height of grid
-    :return: list of lists of ints that store each tile's data
+    :param cell_cap: entity holding capacity
+    :return: list that store each tile's data [grass growth level, entity holding capacity]
     """
-    return [[0 for _ in range(width)] for _ in range(height)]
+    return [[[0, cell_cap] for _ in range(width)] for _ in range(height)]
 
 
-def place_rabbits(width, height, n, rng, energy) -> list[tuple[int, int, int]]:
+def place_rabbits(grid, n, rng, energy) -> list[list[int, int, int]]:
     """
     Random placement of rabbits on the grid
-    :param width: width of grid
-    :param height: height of grid
+    :param grid: simulation grid
     :param n: number of rabbits to place
     :param rng: RNG for random placements
     :param energy: initial energy of all rabbits
     :return: list rabbits with their spawning coordinates and initial energy
     """
-    cells = [(x, y, energy) for y in range(height) for x in range(width)]
+    cells = [[x, y, energy] for y in range(len(grid)) for x in range(len(grid[0]))]
     rabbits = rng.sample(cells, n)
+    for rabbit in rabbits:
+        grid[rabbit[1]][rabbit[0]][1] -= 1
     return rabbits
 
 
@@ -58,45 +61,62 @@ def grass_count(grid) -> int:
     grasses = 0
     for row in grid:
         for cell in row:
-            if cell == 0:
+            if cell[0] == 0:
                 grasses += 1
     return grasses
 
 
-def decide_moves(rabbits, width, height, rng, move_cst, idle_cst) -> list[tuple[int, int, int]]:
+def decide_moves(grid, width, height, rabbits, rng) -> list:
     """
     For each rabbit, propose target by adding one of [(1,0),(-1,0),(0,1),(0,-1)]. If target is OOB, use current pos (stay).
     :param rabbits: list of rabbit coordinates
+    :param grid: simulation grid
     :param width: width of grid
     :param height: height of grid
     :param rng: RNG for random movements
-    :param move_cst: cost of energy to potentially move rabbit
-    :param idle_cst: cost of energy to potentially stay idle
-    :return targets: list of targeted coordinates for rabbits to move
+    :return decisions: list of targeted coordinates for rabbits to move/stay
     """
-    targets = []
-    for coord in rabbits:
-        direction_to_move = rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
-        # check if new position is within grid bounds and if not then remain in same position
-        if 0 <= coord[0] + direction_to_move[0] < width and 0 <= coord[1] + direction_to_move[1] < height:
-            targets.append((coord[0] + direction_to_move[0], coord[1] + direction_to_move[1], coord[2] - move_cst))
-        else:
-            targets.append((coord[0], coord[1], coord[2] - idle_cst))
-    return targets
+    decisions = []
+
+    for rabbit in rabbits:
+        for direction_to_move in rng.sample([[1, 0], [-1, 0], [0, 1], [0, -1]], 4):
+            potential_tile = [rabbit[0] + direction_to_move[0], rabbit[1] + direction_to_move[1]]
+
+            # check if new position is within grid bounds and has space
+            if 0 <= potential_tile[0] < width and 0 <= potential_tile[1] < height and \
+                    grid[potential_tile[1]][potential_tile[0]][1] > 0:
+                decisions.append([potential_tile[0], potential_tile[1]])
+            else:  # if not then remain in same position
+                decisions.append(rabbit[0:2])
+
+    return decisions
 
 
-def apply_moves(rabbits, targets) -> None:
+def apply_moves(grid, tile_cap, rabbits, targets, move_cst, idle_cst) -> None:
     """
     Overwrite each rabbit’s position with its target.
+    :param grid: simulation grid
+    :param tile_cap: max entity holding tile capacity
     :param rabbits: list of rabbit's current position
     :param targets: list of target positions
+    :param move_cst: cost of energy to potentially move rabbit
+    :param idle_cst: cost of energy to potentially stay idle
     :return: None
     """
     for index in range(len(rabbits)):
-        rabbits[index] = targets[index]
+        if rabbits[index][0:2] == targets[index]:  # Rabbit is staying idle on his tile
+            rabbits[index][2] -= idle_cst
+        else:  # Rabbit has a new target position to move
+            # Add empty space to the tile the rabbit is about to leave. It should not exceed the total tile capacity.
+            grid[rabbits[index][1]][rabbits[index][0]][1] = min(grid[rabbits[index][1]][rabbits[index][0]][1] + 1,
+                                                                tile_cap)
+            # Move the rabbit
+            rabbits[index] = [targets[index][0], targets[index][1], rabbits[index][2] - move_cst]
+            # Reduce the new tile's entity cap
+            grid[rabbits[index][1]][rabbits[index][0]][1] -= 1
 
 
-def eat_cells(grid, rabbits, regrow, energy_gain) -> set[tuple[int, int]]:
+def eat_cells(grid, rabbits, regrow, energy_gain) -> list[list[int, int]]:
     """
     Eats up a cell's grass for all the rabbits and sets the regrow timer for the grass on the cell.
     :param grid: simulation grid
@@ -105,37 +125,36 @@ def eat_cells(grid, rabbits, regrow, energy_gain) -> set[tuple[int, int]]:
     :param energy_gain: energy to gain after eating grass
     :return: set of tuples of coordinates that have been eaten recently
     """
-    newly_eaten = set()
+    newly_eaten = []
     for index in range(len(rabbits)):
-        if grid[rabbits[index][1]][rabbits[index][0]] == 0:
-            grid[rabbits[index][1]][rabbits[index][0]] = regrow  # Set new timer for grass to grow again
-            rabbits[index] = (rabbits[index][0], rabbits[index][1],
-                              rabbits[index][2] + energy_gain)  # Give energy gains to rabbits who have eaten grass
-            newly_eaten.add(
-                (rabbits[index][0], rabbits[index][1]))  # Save the newly eaten position on grid for later use
+        if grid[rabbits[index][1]][rabbits[index][0]][0] == 0:
+            grid[rabbits[index][1]][rabbits[index][0]][0] = regrow  # Set new timer for grass to grow again
+            rabbits[index][2] += energy_gain  # Give energy gains to rabbits who have eaten grass
+            newly_eaten.append(rabbits[index][0:2])  # Save the newly eaten position on grid for later use
     return newly_eaten
 
 
-def regrow_step(grid, newly_eaten) -> None:
+def regrow_step(grid, width, height, newly_eaten) -> None:
     """
     Decrements the timer of every tile on grid by 1, clamped to 0.
     :param grid: simulation grid.
-    :param newly_eaten: Set of tiles to skip the growth.
+    :param width: width of grid
+    :param height: height of grid
+    :param newly_eaten: List of tiles to skip the growth.
     :return: None
     """
-    H = len(grid)
-    W = len(grid[0]) if H else 0
-    for i in range(H):
-        for j in range(W):
-            if (j, i) in newly_eaten:
+    for i in range(height):
+        for j in range(width):
+            if [j, i] in newly_eaten:
                 continue  # don't decrement the cell we just set to G this tick
-            if grid[i][j] > 0:
-                grid[i][j] -= 1
+            if grid[i][j][0] > 0:
+                grid[i][j][0] -= 1
 
 
-def reproduce(rabbits, rng, width, height, threshold, cost, spawn_energy) -> list:
+def reproduce(grid, rabbits, rng, width, height, threshold, cost, spawn_energy) -> list:
     """
     takes all rabbits and makes it reproduce by cutting some energy and spawning a new rabbit in grid near parent of the rabbit has the reproduction threshold
+    :param grid: simulation grid
     :param rabbits: list of rabbits
     :param rng: RNG for randomness
     :param width: width of grid
@@ -145,23 +164,27 @@ def reproduce(rabbits, rng, width, height, threshold, cost, spawn_energy) -> lis
     :param spawn_energy: initial energy of the spawned infant
     :return newly_born: list of newly born rabbits
     """
-    spawnable_directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    spawnable_directions = [[1, 0], [-1, 0], [0, 1], [0, -1]]
     newly_born = []
 
     for index in range(len(rabbits)):
         if rabbits[index][2] >= threshold:
+            rabbits[index][2] -= cost  # drain energy if either it successfully gives birth or fails
             for direction in rng.sample(spawnable_directions, 4):  # goes through all direction for spawnable conditions
-                if 0 <= rabbits[index][0] + direction[0] < width and 0 <= rabbits[index][1] + direction[1] < height:
-                    spawned_infant = (rabbits[index][0] + direction[0], rabbits[index][1] + direction[1],
-                                      spawn_energy)  # spawn one if a direction is valid for spawning
-                    rabbits[index] = (rabbits[index][0], rabbits[index][1], rabbits[index][2] - cost)
+                potential_tile = [rabbits[index][0] + direction[0], rabbits[index][1] + direction[1]]
+
+                # Only spawn child if the potential tile is within grid bounds and the tile has space for entity
+                if 0 <= potential_tile[0] < width and 0 <= potential_tile[1] < height and \
+                        grid[potential_tile[1]][potential_tile[0]][1] > 0:
+                    spawned_infant = [potential_tile[0], potential_tile[1],
+                                      spawn_energy]  # spawn one if a direction is valid for spawning
                     newly_born.append(spawned_infant)
                     break
-            else:  # If no adjacent tile is possible to spawn then spawn it on parent's tile
-                spawned_infant = (rabbits[index][0], rabbits[index][1],
-                                  spawn_energy)  # spawn infant at parent's position if no direction is spawnable
-                rabbits[index] = (rabbits[index][0], rabbits[index][1], rabbits[index][2] - cost)
-                newly_born.append(spawned_infant)
+            else:  # If no adjacent tile is possible to spawn then spawn it on parent's tile if there is space for entity
+                if grid[rabbits[index][1]][rabbits[index][0]][1] > 0:
+                    spawned_infant = (rabbits[index][0], rabbits[index][1],
+                                      spawn_energy)  # spawn infant at parent's position if no direction is spawnable
+                    newly_born.append(spawned_infant)
 
     return newly_born
 
@@ -187,21 +210,22 @@ def run_headless():
     min_cov = 1.0
     max_cov = 0.0
     total_cells = grid_width * grid_height
-    grid = init_grid(grid_width, grid_height)
-    list_of_rabbits = place_rabbits(grid_width, grid_height, initial_rabbits, RNG, starting_energy)
+    grid = init_grid(grid_width, grid_height, tile_capacity)
+    list_of_rabbits = place_rabbits(grid, initial_rabbits, RNG, starting_energy)
 
     while sim_ticks < total_ticks:
 
         # Make every rabbit move in a random direction using move_rabbit()
-        next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG, move_cost, idle_cost)
-        apply_moves(list_of_rabbits, next_moves)
+        next_moves = decide_moves(grid, grid_width, grid_height, list_of_rabbits, RNG)
+        apply_moves(grid, tile_capacity, list_of_rabbits, next_moves, move_cost, idle_cost)
 
         # after movement, rabbits can eat grass
         recently_eaten = eat_cells(grid, list_of_rabbits, regrow_rate, eating_gains)
-        regrow_step(grid, recently_eaten)
+        regrow_step(grid, grid_width, grid_height, recently_eaten)
 
         # Rabbits can now reproduce if they meet the energy requirement
-        new_born = reproduce(list_of_rabbits, RNG, grid_width, grid_height, reproduction_threshold, reproduction_cost,
+        new_born = reproduce(grid, list_of_rabbits, RNG, grid_width, grid_height, reproduction_threshold,
+                             reproduction_cost,
                              initial_energy)
         list_of_rabbits += new_born
 
@@ -216,7 +240,7 @@ def run_headless():
         max_cov = max(max_cov, cov)
         if render_counter == 0:
             print(
-                f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height} coverage={(cov * 100):.1f}%")
+                f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid} coverage={(cov * 100):.1f}%")
             render_counter = render_every
 
         # Update tick and render counter
@@ -230,8 +254,8 @@ def run_headless():
 
 
 def run_curses():
-    grid = init_grid(grid_width, grid_height)
-    rabbits = place_rabbits(grid_width, grid_height, initial_rabbits, RNG, starting_energy)
+    grid = init_grid(grid_width, grid_height, tile_capacity)
+    rabbits = place_rabbits(grid, initial_rabbits, RNG, starting_energy)
     sim_ticks = 0
     sum_coverage = 0.0
     min_cov = 1.0
@@ -241,12 +265,11 @@ def run_curses():
     def step_fn():
         nonlocal sim_ticks, sum_coverage, min_cov, max_cov, grid, rabbits
         if sim_ticks < total_ticks:
-            next_moves = decide_moves(rabbits, grid_width, grid_height, RNG, move_cost, idle_cost)
-            apply_moves(rabbits, next_moves)
+            next_moves = decide_moves(grid, grid_width, grid_height, rabbits, RNG)
+            apply_moves(grid, tile_capacity, rabbits, next_moves, move_cost, idle_cost)
             newly = eat_cells(grid, rabbits, regrow_rate, eating_gains)
-            regrow_step(grid, newly)
-            new_born = reproduce(rabbits, RNG, grid_width, grid_height, reproduction_threshold,
-                                 reproduction_cost,
+            regrow_step(grid, grid_width, grid_height, newly)
+            new_born = reproduce(grid, rabbits, RNG, grid_width, grid_height, reproduction_threshold, reproduction_cost,
                                  initial_energy)
             rabbits += new_born
             remove_dead_bodies(rabbits)
