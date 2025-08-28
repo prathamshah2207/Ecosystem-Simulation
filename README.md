@@ -86,8 +86,8 @@ python EcoSim.py --ui curses --width 20 --height 10 --rabbits 15 --capacity 1 --
 | `--repro-cost` | `5` | Energy deducted from parent at birth |
 | `--infant-energy` | `None` | Newborn energy (defaults to `repro_cost` if not set) |
 
-> 💡 **Balance tip:** Using a small `--idle-cost` (e.g., `1`) and a higher `--move-cost` (e.g., `2`) prevents “idle farming” when the grid is packed.
-> 💡 **Note:** All default values for flags in `config.py` may not match the above list
+ 💡 **Balance tip:** Using a small `--idle-cost` (e.g., `1`) and a higher `--move-cost` (e.g., `2`) prevents “idle farming” when the grid is packed.
+ 💡 **Note:** All default values for flags in `config.py` may not match the above list
 
 ---
 
