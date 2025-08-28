@@ -34,7 +34,7 @@ def init_grid(width, height) -> list[list[int]]:
     return [[0 for _ in range(width)] for _ in range(height)]
 
 
-def place_rabbits(width, height, n, rng, energy) -> list[tuple[int, int]]:
+def place_rabbits(width, height, n, rng, energy) -> list[tuple[int, int, int]]:
     """
     Random placement of rabbits on the grid
     :param width: width of grid
@@ -42,7 +42,7 @@ def place_rabbits(width, height, n, rng, energy) -> list[tuple[int, int]]:
     :param n: number of rabbits to place
     :param rng: RNG for random placements
     :param energy: initial energy of all rabbits
-    :return: list of tuples of ints made of rabbit coordinates
+    :return: list rabbits with their spawning coordinates and initial energy
     """
     cells = [(x, y, energy) for y in range(height) for x in range(width)]
     rabbits = rng.sample(cells, n)
@@ -192,17 +192,6 @@ def run_headless():
 
     while sim_ticks < total_ticks:
 
-        # Print status of simulation whenever render_counter hits 0.
-        g = grass_count(grid)
-        cov = g / total_cells
-        sum_coverage += g / total_cells
-        min_cov = min(min_cov, cov)
-        max_cov = max(max_cov, cov)
-        if render_counter == 0:
-            print(
-                f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height} coverage={(cov * 100):.1f}%")
-            render_counter = render_every
-
         # Make every rabbit move in a random direction using move_rabbit()
         next_moves = decide_moves(list_of_rabbits, grid_width, grid_height, RNG, move_cost, idle_cost)
         apply_moves(list_of_rabbits, next_moves)
@@ -218,6 +207,17 @@ def run_headless():
 
         # clear any dead rabbits whose energy level reaches 0
         remove_dead_bodies(list_of_rabbits)
+
+        # Print status of simulation whenever render_counter hits 0.
+        g = grass_count(grid)
+        cov = g / total_cells
+        sum_coverage += g / total_cells
+        min_cov = min(min_cov, cov)
+        max_cov = max(max_cov, cov)
+        if render_counter == 0:
+            print(
+                f"tick={sim_ticks} rabbits={len(list_of_rabbits)} grass={g}/{grid_width * grid_height} coverage={(cov * 100):.1f}%")
+            render_counter = render_every
 
         # Update tick and render counter
         sim_ticks += 1

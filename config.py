@@ -5,6 +5,8 @@ parser.add_argument('--width', default=30, type=int, help="Defines the width of 
 parser.add_argument('--height', default=15, type=int, help="Defines the height of the simulation grid (default: 15).")
 parser.add_argument('--ticks', default=200, type=int,
                     help="Defines the total simulation ticks/steps to run (default: 200).")
+parser.add_argument('--capacity', default=1, type=int,
+                    help="Max rabbits allowed on a cell after movement and after births (default: 1).")
 parser.add_argument('--render-every', default=1, type=int, help="Print one status line every K ticks (default: 1).")
 parser.add_argument('--rabbits', default=20, type=int,
                     help="Number of rabbits in a simulation at a time (default: 20).")
@@ -30,6 +32,8 @@ args = parser.parse_args()
 
 if args.width < 1 or args.height < 1:
     parser.error("The width and height should be greater than or equal to 1.")
+if args.capacity <= 0:
+    parser.error("Grid's tile capacity must be greater than 0.")
 if args.rabbits > args.width * args.height:
     parser.error("Number of rabbits should be less than total number of cells.")
 if args.regrow < 0:
@@ -46,6 +50,8 @@ if args.repro_threshold < 0:
     parser.error("reproduction threshold cannot be less than 0.")
 if args.repro_cost < 0:
     parser.error("reproduction cost cannot be less than 0.")
+if args.infant_energy is int and args.infant_energy <= 0:
+    parser.error("Infant energy must be a positive integer.")
 
 
 def get_args():
